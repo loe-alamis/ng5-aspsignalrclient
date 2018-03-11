@@ -1,5 +1,5 @@
-import { Component } from '@angular/core';
-import { HubConnection } from '@aspnet/signalr-client';
+import { Component, ChangeDetectorRef  } from '@angular/core';
+declare var $: any;
 
 @Component({
   selector: 'app-root',
@@ -8,31 +8,44 @@ import { HubConnection } from '@aspnet/signalr-client';
 })
 export class AppComponent {
   title = 'app';
+  private connection: any;
+  private proxy: any;
+  private ulr: any;
+  public messages: string[] = [];
+  public message= '';
+  public name= '';
 
-  private hubConnection: HubConnection;
+  constructor(private ref: ChangeDetectorRef){}
 
-  nick = '';
-  message = '';
-  messages: string[] = [];
+  ngOnInit() {
+    this.connection = $.hubConnection('http://localhost:52659/signalr', { useDefaultPath: false});
+    this.connection.logging = true;
+    
+    this.proxy = this.connection.createHubProxy('myHub');
 
-  ngOnInit(){
-    this.nick = window.prompt('Your name: ', 'John');
-    this.hubConnection = new HubConnection('http://localhost:5000/chat');
+    //this.name = prompt('Enter your name', '');
+    this.name = 'client';
 
-    this.hubConnection
-      .start()
-      .then(() => console.log('Connection started'))
-      .catch(err => console.log('Error while establishing connection'));
+    this.proxy.on('addNewMessageToPage', (name: string, message: string) => {
+      var self = this;
+      self.message = message;
+      const text = `${name}: ${message}`;
+      self.messages.push(text);
+      self.ref.detectChanges();
 
-    this.hubConnection.on('sendToAll', (nick: string, receivedMessage: string) => {
-      const text = `${nick}: ${receivedMessage}`;
-      this.messages.push(text);
+      console.log(self.message);
+      console.log(self.messages);
+    });
+
+    this.connection.start().done((data: any) => {
+      console.log('Connected to Processing Hub');
+    }).catch((error: any) => {
+      console.log('Hub error -> ' + error);
     });
   }
 
-  public sendMessage(): void {
-    this.hubConnection
-      .invoke('sendToAll', this.nick, this.message)
-      .catch(err => console.error(err));
+  onSend(): void {
+    this.proxy.invoke('send', this.name, this.message);
   }
+
 }
